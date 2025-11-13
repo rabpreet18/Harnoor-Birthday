@@ -10,7 +10,7 @@
   canvas{display:block}
   .hud{position:fixed;top:14px;right:14px;display:flex;gap:10px;z-index:12}
   .btn{padding:12px 16px;background:rgba(255,255,255,.18);color:#fff;border:0;border-radius:12px;cursor:pointer;font:600 15px system-ui;backdrop-filter:blur(6px)}
-  .start{position:fixed;inset:0;display:grid;place-items:center;z-index:9999;background:rgba(0,0,0,.72);color:#eee;pointer-events:auto}
+  .start{position:fixed;inset:0;display:grid;place-items:center;z-index:9999;background:rgba(0,0,0,.72);color:#eee}
   .panel{background:#111;border:1px solid #333;padding:22px;border-radius:14px;width:420px;text-align:center}
   .start .btn{background:#3a86ff}
 </style>
@@ -26,108 +26,97 @@
   <div id="gate" class="start">
     <div class="panel">
       <div style="font-size:22px;margin-bottom:8px">Ready?</div>
-      <div style="font-size:14px;opacity:.85;margin-bottom:16px">Tap Start to begin (audio optional).</div>
+      <div style="font-size:14px;opacity:.85;margin-bottom:16px">Tap Start to begin.</div>
       <button id="start" class="btn">Start</button>
     </div>
   </div>
 
-  <!-- Hidden YouTube container -->
   <div id="yt" style="position:fixed;width:0;height:0;overflow:hidden"></div>
 
-  <!-- 0) BOOT: tiny non-module. Removes overlay & emits app-start ASAP -->
+  <!-- Import map: resolves bare "three" in example modules -->
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.module.js"
+    }
+  }
+  </script>
+
+  <!-- Boot: non-module so Start always works -->
   <script>
-    (function boot(){
-      const gate = document.getElementById('gate');
+    (function(){
+      const gate=document.getElementById('gate');
       function start(){
-        if (window.__started) return;
-        window.__started = true;
-        try { gate && gate.remove(); } catch {}
+        if(window.__started) return;
+        window.__started=true;
+        try{ gate.remove(); }catch{}
         document.dispatchEvent(new Event('app-start'));
       }
-      // bind multiple events for reliability
-      const s = document.getElementById('start');
-      ['click','pointerdown','touchstart'].forEach(ev => s.addEventListener(ev, start, {passive:true}));
-      // debug helper: show JS errors on screen instead of silently failing
-      window.addEventListener('error', (e)=>{
-        const div=document.createElement('div');
-        div.style.cssText='position:fixed;bottom:10px;left:10px;background:#300;color:#fff;padding:10px;border-radius:8px;z-index:99999;font:12px monospace;max-width:90vw';
-        div.textContent='JS error: '+(e.message||e.error||'unknown');
-        document.body.appendChild(div);
+      ['click','pointerdown','touchstart'].forEach(ev=>{
+        document.getElementById('start').addEventListener(ev,start,{passive:true});
+      });
+      // show runtime errors on page so you can see them in prod
+      window.addEventListener('error',e=>{
+        const d=document.createElement('div');
+        d.style.cssText='position:fixed;bottom:10px;left:10px;background:#300;color:#fff;padding:10px;border-radius:8px;z-index:99999;font:12px monospace;max-width:90vw';
+        d.textContent='JS error: '+(e.message||e.error||'unknown'); document.body.appendChild(d);
       });
     })();
   </script>
 
-  <!-- 1) MAIN MODULE: Three.js scene -->
+  <!-- Main module (uses import map for "three") -->
   <script type="module">
-    import * as THREE from 'https://unpkg.com/three@0.161.0/build/three.module.js';
-    import { OrbitControls } from 'https://unpkg.com/three@0.161.0/examples/jsm/controls/OrbitControls.js';
-    import { RoundedBoxGeometry } from 'https://unpkg.com/three@0.161.0/examples/jsm/geometries/RoundedBoxGeometry.js';
+    import * as THREE from 'three';
+    import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/controls/OrbitControls.js';
+    import { RoundedBoxGeometry } from 'https://cdn.jsdelivr.net/npm/three@0.161.0/examples/jsm/geometries/RoundedBoxGeometry.js';
 
-    // --- CONFIG (edit these only) ---
-    const SKYLINE = 'https://upload.wikimedia.org/wikipedia/commons/d/d1/Toronto_Skyline_at_night_-b.jpg';
-    const PHOTOS = ['p1.jpg','p2.jpg','p3.jpg','p4.jpg'];  // put files next to index.html
-    const YT_ID = 'B-2BCSxnyHA';
-    const YT_START = 84;
+    const SKYLINE='https://upload.wikimedia.org/wikipedia/commons/d/d1/Toronto_Skyline_at_night_-b.jpg';
+    const PHOTOS=['p1.jpg','p2.jpg','p3.jpg','p4.jpg'];
+    const YT_ID='B-2BCSxnyHA', YT_START=84;
 
-    // --- Renderer / scene / camera ---
-    const app = document.getElementById('app');
-    const renderer = new THREE.WebGLRenderer({ antialias:true });
+    const app=document.getElementById('app');
+    const renderer=new THREE.WebGLRenderer({antialias:true});
     renderer.setPixelRatio(Math.min(devicePixelRatio,2));
     renderer.setSize(innerWidth,innerHeight);
-    renderer.shadowMap.enabled = true;
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.shadowMap.enabled=true;
+    renderer.outputColorSpace=THREE.SRGBColorSpace;
+    renderer.toneMapping=THREE.ACESFilmicToneMapping;
     app.appendChild(renderer.domElement);
 
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(45, innerWidth/innerHeight, 0.1, 200);
+    const scene=new THREE.Scene();
+    const camera=new THREE.PerspectiveCamera(45,innerWidth/innerHeight,0.1,200);
     camera.position.set(3.8,2.6,5.4);
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true; controls.target.set(0,0.45,0);
+    const controls=new OrbitControls(camera,renderer.domElement);
+    controls.enableDamping=true; controls.dampingFactor=.06; controls.target.set(0,.45,0);
 
-    addEventListener('resize', ()=>{
-      camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
-      renderer.setSize(innerWidth,innerHeight);
-    });
+    addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight);});
 
-    scene.add(new THREE.AmbientLight(0xffffff,0.62));
-    const spot = new THREE.SpotLight(0xffffff,1.35,0,0.6,0.7,1.2); spot.position.set(4,6,2); spot.castShadow=true; scene.add(spot);
+    scene.add(new THREE.AmbientLight(0xffffff,.62));
+    const spot=new THREE.SpotLight(0xffffff,1.35,0,.6,.7,1.2); spot.position.set(4,6,2); spot.castShadow=true; scene.add(spot);
 
-    // --- helpers ---
-    const texFromCanvas = (draw,w=1024,h=1024)=>{
-      const c=document.createElement('canvas'); c.width=w; c.height=h; const g=c.getContext('2d');
-      draw(g,w,h); const t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=16; return t;
-    };
-    const loadTex = (url)=>new Promise(res=>{
-      const t=new THREE.Texture(), img=new Image(); img.crossOrigin='anonymous';
-      img.onload=()=>{ t.image=img; t.needsUpdate=true; t.colorSpace=THREE.SRGBColorSpace; t.anisotropy=16; res(t); };
-      img.onerror=()=>res(texFromCanvas(g=>{ g.fillStyle='#bbb'; g.fillRect(0,0,1024,1024); }));
-      img.src=url;
-    });
+    const texFromCanvas=(draw,w=1024,h=1024)=>{const c=document.createElement('canvas');c.width=w;c.height=h;const g=c.getContext('2d');draw(g,w,h);const t=new THREE.CanvasTexture(c);t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=16;return t;};
+    const loadTex=url=>new Promise(res=>{const t=new THREE.Texture(),img=new Image();img.crossOrigin='anonymous';img.onload=()=>{t.image=img;t.needsUpdate=true;t.colorSpace=THREE.SRGBColorSpace;t.anisotropy=16;res(t)};img.onerror=()=>res(texFromCanvas(g=>{g.fillStyle='#bbb';g.fillRect(0,0,1024,1024);}));img.src=url;});
 
-    // --- table + cloth ---
-    const wood = texFromCanvas((g,w,h)=>{ g.fillStyle='#6e4a2e'; g.fillRect(0,0,w,h); for(let y=0;y<h;y++){ const a=30+Math.sin(y*0.015)*18+Math.sin(y*0.06)*6; g.fillStyle=`rgba(255,255,255,${(a/255)*0.08})`; g.fillRect(0,y,w,1);} });
+    // table + cloth
+    const wood=texFromCanvas((g,w,h)=>{g.fillStyle='#6e4a2e';g.fillRect(0,0,w,h);for(let y=0;y<h;y++){const a=30+Math.sin(y*.015)*18+Math.sin(y*.06)*6;g.fillStyle=`rgba(255,255,255,${(a/255)*.08})`;g.fillRect(0,y,w,1);}});
     wood.wrapS=wood.wrapT=THREE.RepeatWrapping; wood.repeat.set(2.2,2.2);
-    const cloth = texFromCanvas((g,w,h)=>{ const A='#e7defa', B='#1c1c22', n=12, s=w/n; for(let y=0;y<n;y++)for(let x=0;x<n;x++){ g.fillStyle=((x+y)%2)?B:A; g.fillRect(x*s,y*s,s,s);} });
+    const cloth=texFromCanvas((g,w,h)=>{const A='#e7defa',B='#1c1c22',n=12,s=w/n;for(let y=0;y<n;y++)for(let x=0;x<n;x++){g.fillStyle=((x+y)%2)?B:A;g.fillRect(x*s,y*s,s,s);}});
     cloth.wrapS=cloth.wrapT=THREE.RepeatWrapping; cloth.repeat.set(2.6,2.15);
+    const tableTop=new THREE.Mesh(new THREE.BoxGeometry(14,.18,10),new THREE.MeshPhysicalMaterial({map:wood,metalness:.05,roughness:.38,clearcoat:.65,clearcoatRoughness:.25}));
+    tableTop.castShadow=tableTop.receiveShadow=true; scene.add(tableTop);
+    const clothMesh=new THREE.Mesh(new THREE.PlaneGeometry(13.6,9.8),new THREE.MeshStandardMaterial({map:cloth}));
+    clothMesh.rotation.x=-Math.PI/2; clothMesh.position.y=.1; clothMesh.receiveShadow=true; scene.add(clothMesh);
 
-    const tableTop = new THREE.Mesh(new THREE.BoxGeometry(14,0.18,10), new THREE.MeshPhysicalMaterial({ map:wood, metalness:.05, roughness:.38, clearcoat:.65, clearcoatRoughness:.25 }));
-    tableTop.castShadow = tableTop.receiveShadow = true; scene.add(tableTop);
-    const clothMesh = new THREE.Mesh(new THREE.PlaneGeometry(13.6,9.8), new THREE.MeshStandardMaterial({ map:cloth }));
-    clothMesh.rotation.x=-Math.PI/2; clothMesh.position.y=0.1; clothMesh.receiveShadow=true; scene.add(clothMesh);
-
-    // --- L-shaped skyline (3D, no floor gap) ---
+    // L-shaped skyline
     (async()=>{
-      const sky = await loadTex(SKYLINE);
-      const m = new THREE.MeshBasicMaterial({ map:sky, toneMapped:false });
-      const W=28,H=W*9/16, y=0.1+H/2, d=5.0;
-      const back = new THREE.Mesh(new THREE.BoxGeometry(W,H,0.1), m); back.position.set(0,y,-d-0.1); scene.add(back);
-      const side = new THREE.Mesh(new THREE.BoxGeometry(W,H,0.1), m); side.position.set(7.1,y,0); side.rotation.y=-Math.PI/2; scene.add(side);
+      const sky=await loadTex(SKYLINE);
+      const m=new THREE.MeshBasicMaterial({map:sky,toneMapped:false});
+      const W=28,H=W*9/16,y=.1+H/2,d=5.0;
+      const back=new THREE.Mesh(new THREE.BoxGeometry(W,H,.1),m); back.position.set(0,y,-d-.1); scene.add(back);
+      const side=new THREE.Mesh(new THREE.BoxGeometry(W,H,.1),m); side.position.set(7.1,y,0); side.rotation.y=-Math.PI/2; scene.add(side);
       const r=7.1;
-      const corner = new THREE.Mesh(
-        new THREE.CylinderGeometry(r,r,H,80,1,false,Math.PI,Math.PI/2),
-        new THREE.MeshBasicMaterial({ map:sky, side:THREE.DoubleSide, toneMapped:false })
-      ); corner.position.set(r,y,-r); corner.rotation.y=Math.PI/2; scene.add(corner);
+      const corner=new THREE.Mesh(new THREE.CylinderGeometry(r,r,H,80,1,false,Math.PI,Math.PI/2),new THREE.MeshBasicMaterial({map:sky,side:THREE.DoubleSide,toneMapped:false}));
+      corner.position.set(r,y,-r); corner.rotation.y=Math.PI/2; scene.add(corner);
     })();
 
     // --- frames ---
