@@ -5,30 +5,41 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>3D Birthday • Three.js (vanilla)</title>
   <style>
-    html, body {height:100%; margin:0; background:#0b0b0b;}
-    #app {position:fixed; inset:0}
-    .hud {position:fixed; top:14px; right:14px; display:flex; gap:10px; z-index:12}
-    .btn {padding:12px 16px; background:rgba(255,255,255,.18); color:#fff; border:0; border-radius:12px; cursor:pointer; font:600 15px system-ui; backdrop-filter: blur(6px)}
-    .start {position:fixed; inset:0; display:grid; place-items:center; z-index:20; background:rgba(0,0,0,.72); color:#eee}
-    .panel {background:#111; border:1px solid #333; padding:22px; border-radius:14px; width:420px; text-align:center}
-    .start .btn {background:#3a86ff}
-    canvas {display:block}
+    html, body { height:100%; margin:0; background:#0b0b0b; }
+    #app { position:fixed; inset:0; z-index:0; }
+    canvas { display:block; }
+
+    .hud { position:fixed; top:14px; right:14px; display:flex; gap:10px; z-index:12 }
+    .btn { padding:12px 16px; background:rgba(255,255,255,.18); color:#fff; border:0; border-radius:12px; cursor:pointer; font:600 15px system-ui; backdrop-filter: blur(6px) }
+
+    .start { position:fixed; inset:0; display:grid; place-items:center; z-index:9999; background:rgba(0,0,0,.72); color:#eee; pointer-events:auto }
+    .panel { background:#111; border:1px solid #333; padding:22px; border-radius:14px; width:420px; text-align:center }
+    .start .btn { background:#3a86ff }
   </style>
+  <!--
+    HOW TO USE:
+    1) Put this file at your repo root as index.html
+    2) Place four photos in the same folder named: p1.jpg, p2.jpg, p3.jpg, p4.jpg (lowercase)
+    3) Deploy on Vercel with Framework: Other, Build: (empty), Output dir: .
+  -->
 </head>
 <body>
   <div id="app"></div>
+
   <div class="hud">
     <button id="mute" class="btn">Unmute</button>
     <button id="play" class="btn">Play</button>
   </div>
+
   <div id="gate" class="start">
     <div class="panel">
       <div style="font-size:22px; margin-bottom:8px">Ready?</div>
       <div style="font-size:14px; opacity:.85; margin-bottom:16px">Tap Start to enable audio & begin the celebration.</div>
-      <button id="start" class="btn">Start</button>
+      <button id="start" class="btn" onclick="startApp()">Start</button>
     </div>
   </div>
-  <!-- Hidden YouTube container -->
+
+  <!-- Hidden YouTube container (the API will inject an iframe here) -->
   <div id="yt" style="position:fixed; width:0; height:0; overflow:hidden"></div>
 
   <script type="module">
@@ -38,8 +49,7 @@
 
     // ---------- USER CONTENT (hard-coded) ----------
     const SKYLINE = 'https://upload.wikimedia.org/wikipedia/commons/d/d1/Toronto_Skyline_at_night_-b.jpg';
-    // Put images in the same folder or at /public when hosting: p1.jpg..p4.jpg
-    const PHOTOS = ['p1.jpg','p2.jpg','p3.jpg','p4.jpg'];
+    const PHOTOS = ['p1.jpg','p2.jpg','p3.jpg','p4.jpg'];   // place these next to index.html
     const YT_ID = 'B-2BCSxnyHA';
     const YT_START = 84; // seconds
 
@@ -59,12 +69,10 @@
     camera.position.set(3.8, 2.6, 5.4);
 
     const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.06;
+    controls.enableDamping = true; controls.dampingFactor = 0.06;
     controls.rotateSpeed = 0.9; controls.zoomSpeed = 0.9; controls.panSpeed = 0.8;
     controls.target.set(0, 0.45, 0);
 
-    // ---------- Resize ----------
     addEventListener('resize', ()=>{
       camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix();
       renderer.setSize(innerWidth, innerHeight);
@@ -84,7 +92,7 @@
       return new Promise(res=>{
         const tex = new THREE.Texture(); const img = new Image(); img.crossOrigin='anonymous';
         img.onload=()=>{ tex.image=img; tex.needsUpdate=true; tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=16; res(tex); };
-        img.onerror=()=>res(canvasTexture((g,w,h)=>{g.fillStyle='#bbb'; g.fillRect(0,0,w,h)}));
+        img.onerror=()=>res(canvasTexture((g,w,h)=>{ g.fillStyle='#bbb'; g.fillRect(0,0,w,h) }));
         img.src=url;
       });
     }
@@ -99,18 +107,27 @@
     const table = new THREE.Group(); scene.add(table);
     const top = new THREE.Mesh(new THREE.BoxGeometry(14,0.18,10), new THREE.MeshPhysicalMaterial({ map:wood, metalness:.05, roughness:.38, clearcoat:.65, clearcoatRoughness:.25 }));
     top.castShadow = top.receiveShadow = true; table.add(top);
+
     const clothMesh = new THREE.Mesh(new THREE.PlaneGeometry(13.6,9.8), new THREE.MeshStandardMaterial({ map:cloth }));
     clothMesh.rotation.x = -Math.PI/2; clothMesh.position.y = 0.1; clothMesh.receiveShadow = true; scene.add(clothMesh);
 
-    // ---------- 3D L‑shape skyline (back + curved corner + side) flush with cloth bottom ----------
+    // ---------- 3D L-shape skyline (back + curved corner + side) flush with cloth bottom ----------
     (async()=>{
       const sky = await loadTex(SKYLINE);
       const m = new THREE.MeshBasicMaterial({ map: sky, toneMapped:false });
       const faceW = 28, faceH = faceW*9/16; const y = 0.1 + faceH/2; const depth = 5.0;
-      const back = new THREE.Mesh(new THREE.BoxGeometry(faceW, faceH, 0.1), m); back.position.set(0,y,-depth-0.1); scene.add(back);
-      const side = new THREE.Mesh(new THREE.BoxGeometry(faceW, faceH, 0.1), m); side.position.set(7.1,y,0); side.rotation.y = -Math.PI/2; scene.add(side);
+
+      const back = new THREE.Mesh(new THREE.BoxGeometry(faceW, faceH, 0.1), m);
+      back.position.set(0,y,-depth-0.1); scene.add(back);
+
+      const side = new THREE.Mesh(new THREE.BoxGeometry(faceW, faceH, 0.1), m);
+      side.position.set(7.1,y,0); side.rotation.y = -Math.PI/2; scene.add(side);
+
       const r = 7.1; // corner radius matches side wall x
-      const corner = new THREE.Mesh(new THREE.CylinderGeometry(r,r,faceH,80,1,false,Math.PI,Math.PI/2), new THREE.MeshBasicMaterial({ map: sky, side:THREE.DoubleSide, toneMapped:false }));
+      const corner = new THREE.Mesh(
+        new THREE.CylinderGeometry(r,r,faceH,80,1,false,Math.PI,Math.PI/2),
+        new THREE.MeshBasicMaterial({ map: sky, side:THREE.DoubleSide, toneMapped:false })
+      );
       corner.position.set(r, y, -r); corner.rotation.y = Math.PI/2; scene.add(corner);
     })();
 
@@ -118,15 +135,20 @@
     async function addFrame(url, pos, rot){
       const frame = new THREE.Group(); frame.position.set(...pos); frame.rotation.set(...rot);
       const W=1.5, H=1.05;
+
       const rim = new THREE.Mesh(new RoundedBoxGeometry(W+0.16,H+0.16,0.08,6,0.06), new THREE.MeshStandardMaterial({ color:'#b48a64', metalness:.15, roughness:.6 }));
       rim.position.y = H/2; rim.castShadow = true; frame.add(rim);
+
       const mat = new THREE.Mesh(new THREE.BoxGeometry(W+0.04,H+0.04,0.02), new THREE.MeshStandardMaterial({ color:'#f3efe8'}));
       mat.position.y = H/2; mat.position.z = 0.03; frame.add(mat);
+
       const photoTex = await loadTex(url);
       const ph = new THREE.Mesh(new THREE.PlaneGeometry(W,H), new THREE.MeshBasicMaterial({ map:photoTex, toneMapped:false }));
       ph.position.y = H/2; ph.position.z = 0.05; frame.add(ph);
+
       const stand = new THREE.Mesh(new THREE.CylinderGeometry(0,0.18,0.25,4), new THREE.MeshStandardMaterial({ color:'#6e5a46', roughness:.95 }));
       stand.rotation.x = Math.PI/2; stand.position.set(0,0.02,-0.08); frame.add(stand);
+
       scene.add(frame);
     }
     addFrame(PHOTOS[0],[-2.2,0.09,0.1],[0,THREE.MathUtils.degToRad(20),0]);
@@ -134,39 +156,55 @@
     addFrame(PHOTOS[2],[1.25,0.09,-1.45],[0,THREE.MathUtils.degToRad(-38),0]);
     addFrame(PHOTOS[3],[2.35,0.09,0.15],[0,THREE.MathUtils.degToRad(-16),0]);
 
-    // ---------- Candle (flame + sparks) ----------
+    // ---------- Candle ----------
     function flameTex(){
       return canvasTexture((g,w,h)=>{ const r=w/2; const grd=g.createRadialGradient(r,r,4,r,r,r); grd.addColorStop(0,'rgba(255,240,180,1)'); grd.addColorStop(.35,'rgba(255,170,40,.95)'); grd.addColorStop(1,'rgba(255,140,40,0)'); g.fillStyle=grd; g.beginPath(); g.arc(r,r,r,0,Math.PI*2); g.fill(); }, 128,128);
     }
 
     // ---------- Cake (colorful) ----------
     const cake = new THREE.Group(); cake.position.set(0,0.5,0); scene.add(cake);
+
     // plate
     const plate = new THREE.Mesh(new THREE.CircleGeometry(1.25,64), new THREE.MeshStandardMaterial({ color:'#f7f7f7', roughness:.35, metalness:.05 }));
     plate.rotation.x = -Math.PI/2; plate.position.y = -0.505; plate.receiveShadow=true; cake.add(plate);
+
     // pearls around bottom
-    for(let i=0;i<24;i++){ const a=i/24*Math.PI*2; const r=0.95; const pearl=new THREE.Mesh(new THREE.SphereGeometry(0.05,16,16), new THREE.MeshStandardMaterial({ color:'#fff7f5', roughness:.2 })); pearl.position.set(Math.cos(a)*r,-0.32+0.5,Math.sin(a)*r); pearl.castShadow=true; cake.add(pearl); }
+    for(let i=0;i<24;i++){
+      const a=i/24*Math.PI*2; const r=0.95;
+      const pearl=new THREE.Mesh(new THREE.SphereGeometry(0.05,16,16), new THREE.MeshStandardMaterial({ color:'#fff7f5', roughness:.2 }));
+      pearl.position.set(Math.cos(a)*r,-0.32+0.5,Math.sin(a)*r); pearl.castShadow=true; cake.add(pearl);
+    }
+
     // lower body
     const lower = new THREE.Mesh(new THREE.CylinderGeometry(0.83,0.86,0.36,64), new THREE.MeshStandardMaterial({ color:'#f3c06e', roughness:.6 })); lower.castShadow=true; lower.position.y=0.05; cake.add(lower);
+
     // stripes
-    cake.add(new THREE.Mesh(new THREE.CylinderGeometry(0.84,0.84,0.06,64), new THREE.MeshStandardMaterial({ color:'#fff7f5', roughness:.35 }))).position.y=0.19;
-    cake.add(new THREE.Mesh(new THREE.CylinderGeometry(0.845,0.845,0.04,64), new THREE.MeshStandardMaterial({ color:'#ff4d5a', roughness:.35 }))).position.y=0.13;
+    const stripe1 = new THREE.Mesh(new THREE.CylinderGeometry(0.84,0.84,0.06,64), new THREE.MeshStandardMaterial({ color:'#fff7f5', roughness:.35 })); stripe1.position.y=0.19; cake.add(stripe1);
+    const stripe2 = new THREE.Mesh(new THREE.CylinderGeometry(0.845,0.845,0.04,64), new THREE.MeshStandardMaterial({ color:'#ff4d5a', roughness:.35 })); stripe2.position.y=0.13; cake.add(stripe2);
+
     // top layer
     const topLayer = new THREE.Mesh(new THREE.CylinderGeometry(0.78,0.78,0.22,64), new THREE.MeshStandardMaterial({ color:'#ffe3f1', roughness:.45 })); topLayer.position.y=0.38; topLayer.castShadow=true; cake.add(topLayer);
+
     // rosettes ring
     for(let i=0;i<12;i++){ const a=i/12*Math.PI*2; const r=0.72; const ros=new THREE.Mesh(new THREE.TorusGeometry(0.07,0.03,12,24), new THREE.MeshStandardMaterial({ color:'#fff7f5', roughness:.25 })); ros.position.set(Math.cos(a)*r,0.47,Math.sin(a)*r); ros.castShadow=true; cake.add(ros); }
+
     // drizzle ring
     const drizzle = new THREE.Mesh(new THREE.TorusGeometry(0.77,0.09,24,120), new THREE.MeshPhysicalMaterial({ color:'#ff4d5a', roughness:.22, clearcoat:.4 })); drizzle.position.y=0.28; drizzle.castShadow=true; cake.add(drizzle);
+
     // strawberries
     [[-0.25,0.55,0.2],[0.2,0.55,-0.12]].forEach(p=>{ const m=new THREE.Mesh(new THREE.SphereGeometry(0.1,22,22), new THREE.MeshStandardMaterial({ color:'#ff4d5a', roughness:.4 })); m.position.set(...p); m.castShadow=true; cake.add(m); });
+
     // sticks
     [[-0.2,0.52,0.18,0.28],[0.16,0.52,-0.12,-0.18]].forEach(p=>{ const s=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.6,16), new THREE.MeshStandardMaterial({ color:'#8b5a2b', roughness:.75 })); s.position.set(p[0],p[1],p[2]); s.rotation.x=p[3]; s.castShadow=true; cake.add(s); });
+
     // candle
     const candle = new THREE.Group(); candle.position.set(0,0.95,0); cake.add(candle);
     const cBody = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.9,32), new THREE.MeshStandardMaterial({ color:'#fff4d6', roughness:.4, metalness:.05 })); cBody.castShadow=true; candle.add(cBody);
     const wick = new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.006,0.08,8), new THREE.MeshStandardMaterial({ color:'#222'})); wick.position.y=0.48; candle.add(wick);
     const flame = new THREE.Sprite(new THREE.SpriteMaterial({ map: flameTex(), depthWrite:false, transparent:true, blending:THREE.AdditiveBlending })); flame.position.y=0.56; candle.add(flame);
-    const sparkGeo = new THREE.BufferGeometry(); const N=140; const arr=new Float32Array(N*3); for(let i=0;i<N;i++){arr[i*3+0]=(Math.random()-.5)*.05; arr[i*3+1]=Math.random()*.12-.03; arr[i*3+2]=(Math.random()-.5)*.05;} sparkGeo.setAttribute('position', new THREE.BufferAttribute(arr,3));
+    const sparkGeo = new THREE.BufferGeometry(); const N=140; const arr=new Float32Array(N*3);
+    for(let i=0;i<N;i++){arr[i*3+0]=(Math.random()-.5)*.05; arr[i*3+1]=Math.random()*.12-.03; arr[i*3+2]=(Math.random()-.5)*.05;}
+    sparkGeo.setAttribute('position', new THREE.BufferAttribute(arr,3));
     const sparks = new THREE.Points(sparkGeo, new THREE.PointsMaterial({ size:0.02, color:'#ffcc66', transparent:true, depthWrite:false, blending:THREE.AdditiveBlending })); sparks.position.y=0.6; candle.add(sparks);
     let blown=false; function toggleBlow(){ blown=!blown; flame.visible=!blown; }
 
@@ -177,27 +215,27 @@
     const handle = new THREE.Mesh(new THREE.BoxGeometry(0.28,0.08,0.1), new THREE.MeshStandardMaterial({ color:'#4b2e1e', roughness:.6 })); handle.position.x=-0.55; knife.add(handle);
     let cut=false; function toggleCut(){ cut=!cut; }
 
-    // clickable overlay for cake
+    // clickable picking (cake / card)
     const raycaster = new THREE.Raycaster(); const mouse = new THREE.Vector2();
     function pick(evt){
       const rect = renderer.domElement.getBoundingClientRect();
       mouse.x = ((evt.clientX - rect.left) / rect.width) * 2 - 1;
       mouse.y = -((evt.clientY - rect.top) / rect.height) * 2 + 1;
       raycaster.setFromCamera(mouse, camera);
-      const i = raycaster.intersectObjects([lower, topLayer, drizzle], true);
-      if(i.length) toggleCut();
-      const j = raycaster.intersectObjects([cardBase, cardFront], true);
-      if(j.length) toggleCard();
+      const cHits = raycaster.intersectObjects([lower, topLayer, drizzle], true);
+      if(cHits.length) toggleCut();
+      const kHits = raycaster.intersectObjects([cardBase, cardFront], true);
+      if(kHits.length) toggleCard();
     }
     renderer.domElement.addEventListener('pointerdown', pick);
 
-    // ---------- Card (canvas texture) that pops forward when open ----------
+    // Card (pop forward)
     function cardTexture(){
       return canvasTexture((g,w,h)=>{
         g.fillStyle='#fff'; g.strokeStyle='#e9e6e0'; g.lineWidth=8; g.fillRect(0,0,w,h); g.strokeRect(4,4,w-8,h-8);
         g.fillStyle='#000'; g.font='700 48px system-ui'; g.fillText('HAPPY BIRTHDAY HUNNY', 44, 100);
         g.font='22px system-ui';
-        const text = 'This is just me being a part of your non-lowkey birthday this year hehe. Thank you for being my exploring, bakehold, music, deep talks and everything partner. — love, Rabbo';
+        const text = "This is just me being a part of your non-lowkey birthday this year hehe. Thank you for being my exploring, bakchodi, music, deep talks and random walks partner. Seeing you grow over this last one year has been truly gratifying. Can't wait to see all the success, happiness and masti this next year brings for. I miss you <3 — love, Rabbo";
         const lines = wrap(text, w-88, g);
         let y=150; lines.forEach(line=>{ g.fillText(line, 44, y); y+=34; });
         function wrap(str, max, ctx){ const words=str.split(' '); const out=[]; let cur=''; for(const w of words){ const test=cur?cur+' '+w:w; if(ctx.measureText(test).width>max){ out.push(cur); cur=w; } else cur=test; } if(cur) out.push(cur); return out; }
@@ -205,56 +243,122 @@
     }
     const card = new THREE.Group(); card.position.set(1.6,0,1.0); card.rotation.y = -Math.PI/8; scene.add(card);
     const cardBase = new THREE.Mesh(new THREE.PlaneGeometry(1.7,1.1), new THREE.MeshStandardMaterial({ color:'#f3efe6' })); cardBase.rotation.x = -Math.PI/2; card.add(cardBase);
-    let cardTex = cardTexture();
-    const cardFront = new THREE.Mesh(new THREE.PlaneGeometry(1.7,1.1), new THREE.MeshBasicMaterial({ map:cardTex, toneMapped:false }));
-    cardFront.position.set(0, 0.001, 0); cardFront.rotation.x = 0; card.add(cardFront);
-    let cardOpen=true;
-    function toggleCard(){ cardOpen=!cardOpen; }
+    const cardFront = new THREE.Mesh(new THREE.PlaneGeometry(1.7,1.1), new THREE.MeshBasicMaterial({ map:cardTexture(), toneMapped:false }));
+    cardFront.position.set(0, 0.001, 0); card.add(cardFront);
+    let cardOpen=true; function toggleCard(){ cardOpen=!cardOpen; }
 
-    // ---------- Instruction line on table ----------
+    // Instruction line on table
     const instrTex = canvasTexture((g,w,h)=>{ g.fillStyle='rgba(255,255,255,.95)'; g.font='700 108px system-ui'; g.textAlign='center'; g.textBaseline='middle'; g.shadowColor='rgba(0,0,0,.6)'; g.shadowBlur=12; g.shadowOffsetY=4; g.fillText('Drag • Scroll • Click cake • SPACE blow • Click card', w/2, h/2); }, 2000, 220);
     const instr = new THREE.Mesh(new THREE.PlaneGeometry(6.2,0.7), new THREE.MeshBasicMaterial({ map: instrTex, transparent:true, toneMapped:false }));
     instr.rotation.x = -Math.PI/2; instr.position.set(0,0.101,4.2); scene.add(instr);
 
-    // ---------- Input ----------
+    // Keyboard
     addEventListener('keydown', e=>{ if(e.code==='Space'){ toggleBlow(); } });
 
-    // ---------- Start / Audio ----------
-    let started=false; const gate=document.getElementById('gate'); const startBtn=document.getElementById('start');
-    startBtn.addEventListener('click', ()=>{ started=true; gate.style.display='none'; zoomOut(); ytPlay(); });
+    // ---------- Start / Audio (robust) ----------
+    let player = null, muted = true, playing = false;
+    const gate = document.getElementById('gate');
 
-    // camera zoom-out 10%
+    function startApp() {
+      if (window.__started) return;
+      window.__started = true;
+      if (gate) gate.remove();   // hide overlay immediately
+      zoomOut();                 // 10% zoom-out
+      safeYTPlay();              // try to start audio (non-blocking)
+    }
+    window.startApp = startApp;  // expose for inline onclick
+    document.getElementById('start')?.addEventListener('click', startApp);
+
+    function safeYTPlay() {
+      try { initYouTube(); } catch (e) { console.error('YT init error', e); }
+    }
+
+    function initYouTube() {
+      if (player && player.playVideo) { player.playVideo(); playing = true; return; }
+      if (window.YT && window.YT.Player) { createPlayer(); return; }
+      const tag = document.createElement('script');
+      tag.src = 'https://www.youtube.com/iframe_api';
+      tag.async = true;
+      tag.onload = () => {
+        if (window.YT && window.YT.Player) createPlayer();
+        else console.warn('YT API loaded but YT.Player missing');
+      };
+      document.head.appendChild(tag);
+    }
+
+    function createPlayer() {
+      player = new YT.Player('yt', {
+        videoId: YT_ID,
+        height: '0',
+        width: '0',
+        playerVars: {
+          autoplay: 1,
+          mute: 1,
+          loop: 1,
+          playlist: YT_ID,
+          start: YT_START,
+          controls: 0,
+          disablekb: 1,
+          playsinline: 1
+        },
+        events: {
+          onReady: (e) => { e.target.playVideo(); playing = true; },
+          onStateChange: (e) => {
+            if (e.data === YT.PlayerState.ENDED) {
+              try { e.target.seekTo(YT_START, true); e.target.playVideo(); } catch {}
+            }
+          }
+        }
+      });
+    }
+
+    // HUD buttons
+    document.getElementById('mute')?.addEventListener('click', () => {
+      if (!player) { muted = !muted; document.getElementById('mute').textContent = muted ? 'Unmute' : 'Mute'; return; }
+      muted = !muted; muted ? player.mute() : player.unMute();
+      document.getElementById('mute').textContent = muted ? 'Unmute' : 'Mute';
+    });
+    document.getElementById('play')?.addEventListener('click', () => {
+      if (!player) return;
+      if (playing) player.pauseVideo(); else player.playVideo();
+      playing = !playing;
+      document.getElementById('play').textContent = playing ? 'Pause' : 'Play';
+    });
+
+    // 10% camera zoom-out after start
     function zoomOut(){
       const from=camera.position.clone(); const to=from.clone().multiplyScalar(1.1); const T=500; const t0=performance.now();
       function step(now){ const k=Math.min(1,(now-t0)/T); camera.position.lerpVectors(from,to,k); if(k<1) requestAnimationFrame(step); }
       requestAnimationFrame(step);
     }
 
-    // YouTube Iframe API
-    let player=null, muted=true, playing=false;
-    function ytPlay(){ if(player){ player.playVideo(); playing=true; return; }
-      const tag = document.createElement('script'); tag.src='https://www.youtube.com/iframe_api'; document.body.appendChild(tag);
-      window.onYouTubeIframeAPIReady = ()=>{
-        player = new YT.Player('yt', { videoId:YT_ID, height:'0', width:'0', playerVars: { autoplay:1, mute:1, loop:1, playlist:YT_ID, start:YT_START, controls:0, disablekb:1 }, events:{ onReady:(e)=>{ e.target.playVideo(); playing=true; } } });
-      };
-    }
-    const muteBtn=document.getElementById('mute'); const playBtn=document.getElementById('play');
-    muteBtn.onclick=()=>{ if(!player) return; muted=!muted; muted?player.mute():player.unMute(); muteBtn.textContent = muted? 'Unmute':'Mute'; };
-    playBtn.onclick=()=>{ if(!player) return; if(playing){ player.pauseVideo(); } else { player.playVideo(); } playing=!playing; playBtn.textContent = playing? 'Pause':'Play'; };
-
     // ---------- Animation loop ----------
     renderer.setAnimationLoop((t)=>{
       controls.update();
+
       // candle flicker & sparks
-      if(!blown){ const s = 0.12 + Math.sin(t*0.012*1000*0.012)*0.015; flame.scale.set(s, s*1.6, 1); flame.position.x = Math.sin(t*0.006*1000)*0.01; }
-      const pos = sparks.geometry.attributes.position; for(let i=0;i<pos.count;i++){ let y=pos.getY(i)+0.01+Math.random()*0.004; if(y>0.18) y=-0.03-Math.random()*0.03; pos.setY(i,y); } pos.needsUpdate=true;
+      if(!blown){
+        const s = 0.12 + Math.sin(t*0.012*1000*0.012)*0.015;
+        flame.scale.set(s, s*1.6, 1);
+        flame.position.x = Math.sin(t*0.006*1000)*0.01;
+      }
+      const pos = sparks.geometry.attributes.position;
+      for(let i=0;i<pos.count;i++){
+        let y=pos.getY(i)+0.01+Math.random()*0.004;
+        if(y>0.18) y=-0.03-Math.random()*0.03;
+        pos.setY(i,y);
+      }
+      pos.needsUpdate=true;
+
       // knife cut animation
-      knife.rotation.y += (cut?-Math.PI/3:-Math.PI/12 - knife.rotation.y)*0.08;
-      knife.position.x += (cut?0.9:1.4 - knife.position.x)*0.08;
-      // card pop
+      knife.rotation.y += ( (cut?-Math.PI/3:-Math.PI/12) - knife.rotation.y )*0.08;
+      knife.position.x += ( (cut?0.9:1.4) - knife.position.x )*0.08;
+
+      // card pop & tilt
       card.position.z += ((cardOpen?0.25:0.0) - card.position.z)*0.12;
       const targetScale = cardOpen?1.2:0.9; card.scale.x += (targetScale - card.scale.x)*0.12; card.scale.y = card.scale.x; card.scale.z = card.scale.x;
       cardFront.rotation.x += ((cardOpen?0:Math.PI/2) - cardFront.rotation.x)*0.12;
+
       renderer.render(scene, camera);
     });
   </script>
