@@ -16,12 +16,6 @@
     .panel { background:#111; border:1px solid #333; padding:22px; border-radius:14px; width:420px; text-align:center }
     .start .btn { background:#3a86ff }
   </style>
-  <!--
-    HOW TO USE:
-    1) Put this file at your repo root as index.html
-    2) Place four photos in the same folder named: p1.jpg, p2.jpg, p3.jpg, p4.jpg (lowercase)
-    3) Deploy on Vercel with Framework: Other, Build: (empty), Output dir: .
-  -->
 </head>
 <body>
   <div id="app"></div>
@@ -35,23 +29,40 @@
     <div class="panel">
       <div style="font-size:22px; margin-bottom:8px">Ready?</div>
       <div style="font-size:14px; opacity:.85; margin-bottom:16px">Tap Start to enable audio & begin the celebration.</div>
-      <button id="start" class="btn" onclick="startApp()">Start</button>
+      <button id="start" class="btn">Start</button>
     </div>
   </div>
 
-  <!-- Hidden YouTube container (the API will inject an iframe here) -->
+  <!-- Hidden YouTube container -->
   <div id="yt" style="position:fixed; width:0; height:0; overflow:hidden"></div>
 
+  <!-- BOOT: non-module, guarantees Start always works -->
+  <script>
+    (function boot(){
+      const gate = document.getElementById('gate');
+      function startApp(){
+        if (window.__started) return;
+        window.__started = true;
+        gate && gate.remove();                             // remove overlay immediately
+        document.dispatchEvent(new Event('app-start'));    // tell the main module to begin
+      }
+      // expose & bind
+      window.startApp = startApp;
+      document.getElementById('start')?.addEventListener('click', startApp);
+    })();
+  </script>
+
+  <!-- MAIN: Three.js + scene (module) -->
   <script type="module">
     import * as THREE from 'https://unpkg.com/three@0.161.0/build/three.module.js';
     import { OrbitControls } from 'https://unpkg.com/three@0.161.0/examples/jsm/controls/OrbitControls.js';
     import { RoundedBoxGeometry } from 'https://unpkg.com/three@0.161.0/examples/jsm/geometries/RoundedBoxGeometry.js';
 
-    // ---------- USER CONTENT (hard-coded) ----------
+    // ---------- USER CONTENT ----------
     const SKYLINE = 'https://upload.wikimedia.org/wikipedia/commons/d/d1/Toronto_Skyline_at_night_-b.jpg';
-    const PHOTOS = ['p1.jpg','p2.jpg','p3.jpg','p4.jpg'];   // place these next to index.html
+    const PHOTOS = ['p1.jpg','p2.jpg','p3.jpg','p4.jpg'];   // keep alongside this file
     const YT_ID = 'B-2BCSxnyHA';
-    const YT_START = 84; // seconds
+    const YT_START = 84;
 
     // ---------- Renderer / Scene / Camera ----------
     const app = document.getElementById('app');
@@ -97,7 +108,7 @@
       });
     }
 
-    // ---------- Table + cloth (lilac & black) ----------
+    // ---------- Table + cloth ----------
     const wood = canvasTexture((g,w,h)=>{ g.fillStyle='#6e4a2e'; g.fillRect(0,0,w,h); for(let y=0;y<h;y++){ const a=30+Math.sin(y*0.015)*18+Math.sin(y*0.06)*6; g.fillStyle=`rgba(255,255,255,${(a/255)*0.08})`; g.fillRect(0,y,w,1);} });
     wood.wrapS=wood.wrapT=THREE.RepeatWrapping; wood.repeat.set(2.2,2.2);
 
@@ -111,7 +122,7 @@
     const clothMesh = new THREE.Mesh(new THREE.PlaneGeometry(13.6,9.8), new THREE.MeshStandardMaterial({ map:cloth }));
     clothMesh.rotation.x = -Math.PI/2; clothMesh.position.y = 0.1; clothMesh.receiveShadow = true; scene.add(clothMesh);
 
-    // ---------- 3D L-shape skyline (back + curved corner + side) flush with cloth bottom ----------
+    // ---------- 3D L-shape skyline (back + curved corner + side) ----------
     (async()=>{
       const sky = await loadTex(SKYLINE);
       const m = new THREE.MeshBasicMaterial({ map: sky, toneMapped:false });
@@ -161,43 +172,33 @@
       return canvasTexture((g,w,h)=>{ const r=w/2; const grd=g.createRadialGradient(r,r,4,r,r,r); grd.addColorStop(0,'rgba(255,240,180,1)'); grd.addColorStop(.35,'rgba(255,170,40,.95)'); grd.addColorStop(1,'rgba(255,140,40,0)'); g.fillStyle=grd; g.beginPath(); g.arc(r,r,r,0,Math.PI*2); g.fill(); }, 128,128);
     }
 
-    // ---------- Cake (colorful) ----------
+    // ---------- Cake ----------
     const cake = new THREE.Group(); cake.position.set(0,0.5,0); scene.add(cake);
 
-    // plate
     const plate = new THREE.Mesh(new THREE.CircleGeometry(1.25,64), new THREE.MeshStandardMaterial({ color:'#f7f7f7', roughness:.35, metalness:.05 }));
     plate.rotation.x = -Math.PI/2; plate.position.y = -0.505; plate.receiveShadow=true; cake.add(plate);
 
-    // pearls around bottom
     for(let i=0;i<24;i++){
       const a=i/24*Math.PI*2; const r=0.95;
       const pearl=new THREE.Mesh(new THREE.SphereGeometry(0.05,16,16), new THREE.MeshStandardMaterial({ color:'#fff7f5', roughness:.2 }));
       pearl.position.set(Math.cos(a)*r,-0.32+0.5,Math.sin(a)*r); pearl.castShadow=true; cake.add(pearl);
     }
 
-    // lower body
     const lower = new THREE.Mesh(new THREE.CylinderGeometry(0.83,0.86,0.36,64), new THREE.MeshStandardMaterial({ color:'#f3c06e', roughness:.6 })); lower.castShadow=true; lower.position.y=0.05; cake.add(lower);
 
-    // stripes
     const stripe1 = new THREE.Mesh(new THREE.CylinderGeometry(0.84,0.84,0.06,64), new THREE.MeshStandardMaterial({ color:'#fff7f5', roughness:.35 })); stripe1.position.y=0.19; cake.add(stripe1);
     const stripe2 = new THREE.Mesh(new THREE.CylinderGeometry(0.845,0.845,0.04,64), new THREE.MeshStandardMaterial({ color:'#ff4d5a', roughness:.35 })); stripe2.position.y=0.13; cake.add(stripe2);
 
-    // top layer
     const topLayer = new THREE.Mesh(new THREE.CylinderGeometry(0.78,0.78,0.22,64), new THREE.MeshStandardMaterial({ color:'#ffe3f1', roughness:.45 })); topLayer.position.y=0.38; topLayer.castShadow=true; cake.add(topLayer);
 
-    // rosettes ring
     for(let i=0;i<12;i++){ const a=i/12*Math.PI*2; const r=0.72; const ros=new THREE.Mesh(new THREE.TorusGeometry(0.07,0.03,12,24), new THREE.MeshStandardMaterial({ color:'#fff7f5', roughness:.25 })); ros.position.set(Math.cos(a)*r,0.47,Math.sin(a)*r); ros.castShadow=true; cake.add(ros); }
 
-    // drizzle ring
     const drizzle = new THREE.Mesh(new THREE.TorusGeometry(0.77,0.09,24,120), new THREE.MeshPhysicalMaterial({ color:'#ff4d5a', roughness:.22, clearcoat:.4 })); drizzle.position.y=0.28; drizzle.castShadow=true; cake.add(drizzle);
 
-    // strawberries
     [[-0.25,0.55,0.2],[0.2,0.55,-0.12]].forEach(p=>{ const m=new THREE.Mesh(new THREE.SphereGeometry(0.1,22,22), new THREE.MeshStandardMaterial({ color:'#ff4d5a', roughness:.4 })); m.position.set(...p); m.castShadow=true; cake.add(m); });
 
-    // sticks
     [[-0.2,0.52,0.18,0.28],[0.16,0.52,-0.12,-0.18]].forEach(p=>{ const s=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.6,16), new THREE.MeshStandardMaterial({ color:'#8b5a2b', roughness:.75 })); s.position.set(p[0],p[1],p[2]); s.rotation.x=p[3]; s.castShadow=true; cake.add(s); });
 
-    // candle
     const candle = new THREE.Group(); candle.position.set(0,0.95,0); cake.add(candle);
     const cBody = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.9,32), new THREE.MeshStandardMaterial({ color:'#fff4d6', roughness:.4, metalness:.05 })); cBody.castShadow=true; candle.add(cBody);
     const wick = new THREE.Mesh(new THREE.CylinderGeometry(0.006,0.006,0.08,8), new THREE.MeshStandardMaterial({ color:'#222'})); wick.position.y=0.48; candle.add(wick);
@@ -215,7 +216,7 @@
     const handle = new THREE.Mesh(new THREE.BoxGeometry(0.28,0.08,0.1), new THREE.MeshStandardMaterial({ color:'#4b2e1e', roughness:.6 })); handle.position.x=-0.55; knife.add(handle);
     let cut=false; function toggleCut(){ cut=!cut; }
 
-    // clickable picking (cake / card)
+    // picking
     const raycaster = new THREE.Raycaster(); const mouse = new THREE.Vector2();
     function pick(evt){
       const rect = renderer.domElement.getBoundingClientRect();
@@ -229,13 +230,13 @@
     }
     renderer.domElement.addEventListener('pointerdown', pick);
 
-    // Card (pop forward)
+    // card
     function cardTexture(){
       return canvasTexture((g,w,h)=>{
         g.fillStyle='#fff'; g.strokeStyle='#e9e6e0'; g.lineWidth=8; g.fillRect(0,0,w,h); g.strokeRect(4,4,w-8,h-8);
         g.fillStyle='#000'; g.font='700 48px system-ui'; g.fillText('HAPPY BIRTHDAY HUNNY', 44, 100);
         g.font='22px system-ui';
-        const text = "This is just me being a part of your non-lowkey birthday this year hehe. Thank you for being my exploring, bakchodi, music, deep talks and random walks partner. Seeing you grow over this last one year has been truly gratifying. Can't wait to see all the success, happiness and masti this next year brings for. I miss you <3 — love, Rabbo";
+        const text = "This is just me being a part of your non-lowkey birthday this year hehe. Thank you for being my exploring, bakchodi, music, deep talks and random walks partner. Seeing you grow over this last one year has been truly gratifying. Can't wait to see all the success, happiness and masti this next year brings for. I miss you <3";
         const lines = wrap(text, w-88, g);
         let y=150; lines.forEach(line=>{ g.fillText(line, 44, y); y+=34; });
         function wrap(str, max, ctx){ const words=str.split(' '); const out=[]; let cur=''; for(const w of words){ const test=cur?cur+' '+w:w; if(ctx.measureText(test).width>max){ out.push(cur); cur=w; } else cur=test; } if(cur) out.push(cur); return out; }
@@ -247,96 +248,62 @@
     cardFront.position.set(0, 0.001, 0); card.add(cardFront);
     let cardOpen=true; function toggleCard(){ cardOpen=!cardOpen; }
 
-    // Instruction line on table
+    // instruction line
     const instrTex = canvasTexture((g,w,h)=>{ g.fillStyle='rgba(255,255,255,.95)'; g.font='700 108px system-ui'; g.textAlign='center'; g.textBaseline='middle'; g.shadowColor='rgba(0,0,0,.6)'; g.shadowBlur=12; g.shadowOffsetY=4; g.fillText('Drag • Scroll • Click cake • SPACE blow • Click card', w/2, h/2); }, 2000, 220);
     const instr = new THREE.Mesh(new THREE.PlaneGeometry(6.2,0.7), new THREE.MeshBasicMaterial({ map: instrTex, transparent:true, toneMapped:false }));
     instr.rotation.x = -Math.PI/2; instr.position.set(0,0.101,4.2); scene.add(instr);
 
-    // Keyboard
     addEventListener('keydown', e=>{ if(e.code==='Space'){ toggleBlow(); } });
 
-    // ---------- Start / Audio (robust) ----------
+    // ---------- Audio / Start wiring ----------
     let player = null, muted = true, playing = false;
-    const gate = document.getElementById('gate');
 
-    function startApp() {
-      if (window.__started) return;
-      window.__started = true;
-      if (gate) gate.remove();   // hide overlay immediately
-      zoomOut();                 // 10% zoom-out
-      safeYTPlay();              // try to start audio (non-blocking)
-    }
-    window.startApp = startApp;  // expose for inline onclick
-    document.getElementById('start')?.addEventListener('click', startApp);
+    // listen for boot event (guaranteed to fire by the small script)
+    document.addEventListener('app-start', ()=>{ zoomOut(); safeYTPlay(); });
+    // if Start was clicked before module finished loading
+    if (window.__started) { zoomOut(); safeYTPlay(); }
 
-    function safeYTPlay() {
-      try { initYouTube(); } catch (e) { console.error('YT init error', e); }
-    }
-
-    function initYouTube() {
+    function safeYTPlay(){ try { initYouTube(); } catch(e){ console.error('YT init error', e); } }
+    function initYouTube(){
       if (player && player.playVideo) { player.playVideo(); playing = true; return; }
       if (window.YT && window.YT.Player) { createPlayer(); return; }
       const tag = document.createElement('script');
       tag.src = 'https://www.youtube.com/iframe_api';
       tag.async = true;
-      tag.onload = () => {
-        if (window.YT && window.YT.Player) createPlayer();
-        else console.warn('YT API loaded but YT.Player missing');
-      };
+      tag.onload = () => { if (window.YT && window.YT.Player) createPlayer(); };
       document.head.appendChild(tag);
     }
-
-    function createPlayer() {
+    function createPlayer(){
       player = new YT.Player('yt', {
-        videoId: YT_ID,
-        height: '0',
-        width: '0',
-        playerVars: {
-          autoplay: 1,
-          mute: 1,
-          loop: 1,
-          playlist: YT_ID,
-          start: YT_START,
-          controls: 0,
-          disablekb: 1,
-          playsinline: 1
-        },
-        events: {
-          onReady: (e) => { e.target.playVideo(); playing = true; },
-          onStateChange: (e) => {
-            if (e.data === YT.PlayerState.ENDED) {
-              try { e.target.seekTo(YT_START, true); e.target.playVideo(); } catch {}
-            }
-          }
-        }
+        videoId: YT_ID, height:'0', width:'0',
+        playerVars:{ autoplay:1, mute:1, loop:1, playlist:YT_ID, start:YT_START, controls:0, disablekb:1, playsinline:1 },
+        events:{ onReady:(e)=>{ e.target.playVideo(); playing=true; },
+                 onStateChange:(e)=>{ if(e.data===YT.PlayerState.ENDED){ try{ e.target.seekTo(YT_START,true); e.target.playVideo(); }catch{} } } }
       });
     }
 
-    // HUD buttons
-    document.getElementById('mute')?.addEventListener('click', () => {
+    document.getElementById('mute')?.addEventListener('click', ()=>{
       if (!player) { muted = !muted; document.getElementById('mute').textContent = muted ? 'Unmute' : 'Mute'; return; }
       muted = !muted; muted ? player.mute() : player.unMute();
       document.getElementById('mute').textContent = muted ? 'Unmute' : 'Mute';
     });
-    document.getElementById('play')?.addEventListener('click', () => {
+    document.getElementById('play')?.addEventListener('click', ()=>{
       if (!player) return;
       if (playing) player.pauseVideo(); else player.playVideo();
       playing = !playing;
       document.getElementById('play').textContent = playing ? 'Pause' : 'Play';
     });
 
-    // 10% camera zoom-out after start
     function zoomOut(){
       const from=camera.position.clone(); const to=from.clone().multiplyScalar(1.1); const T=500; const t0=performance.now();
       function step(now){ const k=Math.min(1,(now-t0)/T); camera.position.lerpVectors(from,to,k); if(k<1) requestAnimationFrame(step); }
       requestAnimationFrame(step);
     }
 
-    // ---------- Animation loop ----------
+    // ---------- Loop ----------
     renderer.setAnimationLoop((t)=>{
       controls.update();
 
-      // candle flicker & sparks
       if(!blown){
         const s = 0.12 + Math.sin(t*0.012*1000*0.012)*0.015;
         flame.scale.set(s, s*1.6, 1);
@@ -350,11 +317,9 @@
       }
       pos.needsUpdate=true;
 
-      // knife cut animation
       knife.rotation.y += ( (cut?-Math.PI/3:-Math.PI/12) - knife.rotation.y )*0.08;
       knife.position.x += ( (cut?0.9:1.4) - knife.position.x )*0.08;
 
-      // card pop & tilt
       card.position.z += ((cardOpen?0.25:0.0) - card.position.z)*0.12;
       const targetScale = cardOpen?1.2:0.9; card.scale.x += (targetScale - card.scale.x)*0.12; card.scale.y = card.scale.x; card.scale.z = card.scale.x;
       cardFront.rotation.x += ((cardOpen?0:Math.PI/2) - cardFront.rotation.x)*0.12;
